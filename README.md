@@ -1,4 +1,4 @@
-# Caido_xhs — Caido 流量监听器
+# Caido_xhs — 小红书设备信息自动抓包工具
 
 监听 [Caido](https://caido.io) 应用层代理（MITM）抓取的 HTTP(S) 流量，按规则提取指定小红书app数据包字段（如 `did` / `build` / `session` / `userid` / `nickname` / `platform` 等），自动生成客户端指纹（`fingerprint` / `x_legacy_fid`），写入XHS_sender的mongo数据库中的设备管理集合中，免去了本地抓包的麻烦，实现一键换号，自动添加设备信息。
 
