@@ -1,6 +1,6 @@
 # Caido_xhs — Caido 流量监听器
 
-监听 [Caido](https://caido.io) 应用层代理（MITM）抓取的 HTTP(S) 流量，按规则提取指定字段（如 `did` / `build` / `session` / `userid` / `nickname` / `platform` 等），自动生成客户端指纹（`fingerprint` / `x_legacy_fid`），写入 MongoDB。
+监听 [Caido](https://caido.io) 应用层代理（MITM）抓取的 HTTP(S) 流量，按规则提取指定小红书app数据包字段（如 `did` / `build` / `session` / `userid` / `nickname` / `platform` 等），自动生成客户端指纹（`fingerprint` / `x_legacy_fid`），写入XHS_sender的mongo数据库中的设备管理集合中，免去了本地抓包的麻烦，实现一键换号，自动添加设备信息。
 
 > ⚠️ **免责声明**：本项目仅供**个人学习、研究与安全测试**使用。使用前请确保你已获得目标系统的合法授权，并遵守目标平台的服务条款与当地法律法规。因使用本项目产生的任何法律风险由使用者自行承担。
 
@@ -12,7 +12,7 @@
 - 🎯 **精准过滤**：按 `host + path` 前缀只处理目标请求，无关流量自动忽略
 - 🔧 **灵活提取**：从响应 JSON / 请求头 URL 编码 form / 请求头原文多位置提取字段
 - 🔐 **自动认证**：使用 Caido PAT（永久有效）自动获取/续期 access token，**全程免手动、免运维**
-- 🧬 **指纹生成**：内置小红书客户端指纹算法（`fingerprint`、`x_legacy_fid`），与 App 端一致
+- 🧬 **指纹生成**：内置小红书客户端指纹计算。
 - 🗄️ **增量写入**：HTTP 轮询 + 增量游标，重启不重抓历史；按 `userid` 唯一索引去重
 - 🚀 **一键部署**：Docker Compose 一键启动 Caido + 监听器两个容器，容器重启自动恢复
 
@@ -35,7 +35,7 @@
 ```
 
 - **Caido_xhs**：抓包代理（官方镜像 `caido/caido`），Web 界面与代理共用端口 `18000`
-- **caido_listener**：监听器（本仓库构建），轮询 Caido GraphQL API 提取数据写 Mongo
+- **caido_listener**：监听器（本仓库构建），轮询 Caido GraphQL API 提取数据写 Mongo数据库
 - **认证**：PAT（永久）→ device flow → access token，自动续期，无需人工干预
 
 ---
@@ -50,8 +50,9 @@
 ### 1. 克隆并配置
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/evi1s/Caido_xhs
 cd Caido_xhs
+chmod +x install.sh
 ./install.sh          # 首次运行会生成 config.yaml 模板并提示退出
 vim config.yaml       # 填写: auth.pat / mongo.* / targets / extract_fields
 ./install.sh          # 再次运行：构建并启动两个容器
@@ -96,7 +97,7 @@ docker logs -f caido_listener
 | `caido.url` | Caido GraphQL 地址（compose 部署填 `http://caido:8080`） |
 | `auth.pat` | Caido Personal Access Token（永久有效，自动续期用） |
 | `auth.auto_renew` | token 到期前自动续期（默认 `true`，免运维） |
-| `mongo.*` | MongoDB 连接（host/port/账号/库/集合） |
+| `mongo.*` | MongoDB 连接（host/port/账号/库/集合）要对应小红书私信系统的软件设置--数据库设置+数据库集合设置(设备集) |
 | `targets` | 抓取目标列表（host + path 前缀，命中才处理） |
 | `extract_fields` | 提取字段（每字段多个提取位置，按顺序尝试） |
 | `field_postprocess` | 字段后处理（如 `strip_prefix` 去前缀） |
@@ -119,11 +120,11 @@ docker logs -f caido_listener
 generated_fields:
   fingerprint:
     enabled: true
-    type: "xhs_fingerprint"   # 基于提取字段生成指纹（时间戳 + md5(seed) + 签名）
-    input: "did"              # 用目标账号的 did 作为种子
+    type: "xhs_fingerprint"
+    input: "did"
   x_legacy_fid:
     enabled: true
-    type: "xhs_fid"           # 随机 FID（时间戳-0-0-md5）
+    type: "xhs_fid"
 ```
 
 ### 写入的数据格式（xhs_demo.devices）
@@ -131,11 +132,11 @@ generated_fields:
 ```json
 {
   "nickname": "example_user",
-  "userid": "67cdcbbb000000000d0080f7",
-  "did": "FE0020C4-8764-4CE8-B914-AFCEB77E2B9E",
+  "userid": "67cdcbbb000000000d0000f7",
+  "did": "FE0020C4-8700-4CE8-B914-AFCEB77E2B9E",
   "build": "9221801",
   "version": "9.22.1",
-  "session": "1786486096029534942082",
+  "session": "1786480096029534942082",
   "platform": "iOS",
   "xy-direction": "",
   "fingerprint": "20260817213022a0f719f5ee7f8f247cb3787b30e215a000b79d1292f94ebb",
@@ -192,9 +193,9 @@ docker compose up -d --build      # 重建并重启
 
 ## ❓ 常见问题
 
-**Q: 收不到流量 / Mongo 没数据？**
+**Q: 收不到流量 / Mongo 中的小红书设备管理集合没数据？**
 - 确认客户端代理指向 `<服务器IP>:18000`
-- 确认已安装并信任 Caido CA 证书（HTTPS 解密必需，iOS 需在"证书信任设置"开启完全信任）
+- 确认已安装并信任 Caido CA 证书（HTTPS 解密必需，iOS 需在"证书信任设置"开启完全信任 "设置---通用---关于本机---证书信任设置）
 - 确认 `targets` 的 host 与请求的 Host 完全一致
 - `docker logs -f caido_listener` 查看日志定位
 
