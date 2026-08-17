@@ -1,0 +1,96 @@
+# ============================================================
+# Caido_xhs 流量监听器 — 配置文件示例（发布用）
+# 使用: cp config.yaml.example config.yaml 后填写真实值
+# ⚠️ config.yaml 含敏感凭据，已被 .gitignore 排除，勿提交到仓库
+# ============================================================
+
+# ---------- Caido 实例连接 ----------
+caido:
+  url: "http://caido:8080"            # Caido GraphQL 地址（compose 部署用服务名 caido；本机调试可用 http://127.0.0.1:18000）
+
+# ---------- 认证 ----------
+auth:
+  # Caido Personal Access Token（永久有效，用于自动获取/续期 access token）
+  # 获取方式：Caido 面板 -> Profile -> Personal Access Tokens -> Create
+  pat: "YOUR_CAIDO_PAT_HERE"
+  tokens_file: "/app/data/tokens.json"   # access token 保存位置（脚本自动管理）
+  auto_renew: true                       # 到期前自动用 PAT 续期（建议保持 true）
+
+# ---------- MongoDB ----------
+mongo:
+  host: "mongo"                       # MongoDB 地址（或 IP）
+  port: 27017
+  username: "username"
+  password: "password"
+  auth_source: "admin"                # 认证数据库
+  database: "xhs_demo"                # 目标数据库
+  collection: "devices"               # 目标集合
+
+# ---------- 抓取目标 ----------
+# 命中 host + path 前缀的请求才会被处理（不匹配的流量自动忽略）
+targets:
+  - host: "edith.xiaohongshu.com"
+    path_prefix: "/api/sns/v3/user/me"
+
+# ---------- 提取字段 ----------
+# 每个字段可配置多个提取位置，按顺序尝试，命中最靠前优先。
+# 支持的提取位置语法：
+#   response_json:路径                 响应体 JSON，路径用 . 分隔，数字为数组下标
+#                                       例: response_json:data.nickname
+#                                           response_json:data.recent_chat_user.0.user_id
+#   request_header_form:头名:键名      请求头值按 URL 编码 form 解析再取键名
+#                                       例: request_header_form:xy-platform-info:deviceId
+#   request_header:头名                 直接取请求头值
+#                                       例: request_header:user-agent
+extract_fields:
+  nickname:
+    - "response_json:data.nickname"
+    - "response_json:nickname"
+  userid:
+    - "response_json:data.userid"
+    - "response_json:user_id"
+    - "response_json:data.user_id"
+  did:
+    - "request_header_form:xy-platform-info:deviceId"
+  build:
+    - "request_header_form:xy-platform-info:build"
+  version:
+    - "request_header_form:xy-platform-info:version"
+  session:
+    - "response_json:data.sessionid"
+  platform:
+    - "request_header_form:xy-platform-info:platform"
+
+# ---------- 字段后处理 ----------
+field_postprocess:
+  session:
+    strip_prefix: "session."           # 去掉 "session.xxx" 前缀 -> "xxx"
+
+# ---------- 固定/默认值 ----------
+fixed_fields:
+  platform: "iOS"
+  xy-direction: ""
+
+# ---------- 生成字段 ----------
+generated_fields:
+  fingerprint:
+    enabled: true
+    type: "xhs_fingerprint"            # 基于提取字段生成指纹（时间戳 + md5(seed) + 签名）
+    input: "did"                       # 用哪个提取字段作为种子（基于目标账号的 did）
+  x_legacy_fid:
+    enabled: true
+    type: "xhs_fid"                    # 随机 FID（时间戳-0-0-md5）
+
+# ---------- 去重 ----------
+dedup_key: "userid"                    # 按该字段唯一索引去重（同一账号只保留最新一条）
+
+# ---------- 轮询参数 ----------
+polling:
+  scan_interval: 2.0                   # 扫描新请求间隔（秒）
+  batch_size: 30                       # 每次拉取最新 N 条请求
+  detail_poll_interval: 0.5            # 请求详情轮询间隔（秒）
+  detail_poll_max: 12                  # 请求详情最多轮询次数（等响应到达）
+
+# ---------- 其他 ----------
+last_id_file: "/app/data/last_id.json" # 增量游标保存位置
+log_level: "INFO"                      # DEBUG / INFO / WARNING / ERROR

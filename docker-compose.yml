@@ -1,0 +1,34 @@
+# ============================================================
+# Caido_xhs 一键部署编排
+# 包含两个容器:
+#   Caido_xhs      - Caido 抓包代理 (官方镜像)
+#   caido_listener - 流量监听器 (提取数据写入 MongoDB)
+#
+# 用法:
+#   ./install.sh                 # 一键安装（推荐）
+#   或
+#   docker compose up -d --build # 手动启动
+# ============================================================
+
+services:
+  caido:
+    image: caido/caido:latest          # 官方镜像，升级: docker compose pull
+    container_name: Caido_xhs
+    ports:
+      - "18000:8080"                   # Web 界面 + HTTP(S) 代理端口
+    volumes:
+      - caido-data:/data               # Caido 数据持久化（含 CA 证书、项目）
+    restart: unless-stopped
+
+  listener:
+    build: .                           # 使用本目录 Dockerfile 构建
+    container_name: caido_listener
+    depends_on:
+      - caido
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro   # 真实配置（挂载覆盖镜像内默认）
+      - ./data:/app/data                    # tokens.json / last_id.json 持久化
+    restart: unless-stopped
+
+volumes:
+  caido-data:
