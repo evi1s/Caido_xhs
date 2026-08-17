@@ -97,7 +97,7 @@ docker logs -f caido_listener
 | `caido.url` | Caido GraphQL 地址（compose 部署填 `http://caido:8080`） |
 | `auth.pat` | Caido Personal Access Token（永久有效，自动续期用） |
 | `auth.auto_renew` | token 到期前自动续期（默认 `true`，免运维） |
-| `mongo.*` | MongoDB 连接（host/port/账号/库/集合）要对应小红书私信系统的软件设置--数据库设置+数据库集合设置(设备集) |
+| `mongo.*` | MongoDB 连接（host/port/账号/库/集合）⚠️要对应小红书私信系统的软件设置--数据库设置+数据库集合设置(设备集) |
 | `targets` | 抓取目标列表（host + path 前缀，命中才处理） |
 | `extract_fields` | 提取字段（每字段多个提取位置，按顺序尝试） |
 | `field_postprocess` | 字段后处理（如 `strip_prefix` 去前缀） |
