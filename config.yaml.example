@@ -94,3 +94,5 @@ polling:
 # ---------- 其他 ----------
 last_id_file: "/app/data/last_id.json" # 增量游标保存位置
 log_level: "INFO"                      # DEBUG / INFO / WARNING / ERROR
+
+# 项目版本 v1.0.0

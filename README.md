@@ -217,3 +217,5 @@ docker compose up -d --build      # 重建并重启
 ## 📄 License
 
 [MIT](LICENSE)
+
+# 项目版本 v1.0.0

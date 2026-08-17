@@ -15,3 +15,5 @@ venv/
 .DS_Store
 .idea/
 .vscode/
+
+# 项目版本 v1.0.0

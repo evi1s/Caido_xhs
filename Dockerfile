@@ -15,3 +15,5 @@ VOLUME ["/app/data"]
 
 # 前台运行主监听脚本（容器重启自动拉起）
 CMD ["python3", "/app/caido_listener.py"]
+
+# 项目版本 v1.0.0

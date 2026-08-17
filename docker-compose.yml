@@ -32,3 +32,5 @@ services:
 
 volumes:
   caido-data:
+
+# 项目版本 v1.0.0

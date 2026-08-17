@@ -166,3 +166,5 @@ def datetime_now_iso():
 
 if __name__ == "__main__":
     main()
+
+# 项目版本 v1.0.0
