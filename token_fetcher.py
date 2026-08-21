@@ -61,9 +61,29 @@ def http_graphql(query, token=None):
     return d.get("data") or {}
 
 
-def cloud_req(method, path, query_params):
+def cloud_get(path, query_params):
+    """GET 云 API（新端点：/oauth2/device/*）"""
     url = CLOUD + path + "?" + urllib.parse.urlencode(query_params)
-    req = urllib.request.Request(url, method=method, headers={
+    req = urllib.request.Request(url, headers={
+        "Authorization": "Bearer " + PAT,
+        "Accept": "application/json",
+    })
+    try:
+        r = urllib.request.urlopen(req, timeout=15)
+        return r.status, json.loads(r.read().decode() or "{}")
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, json.loads(e.read().decode() or "{}")
+        except Exception:
+            return e.code, {}
+    except Exception as e:
+        return -1, {"error": str(e)[:200]}
+
+
+def cloud_post(path, query_params):
+    """POST 云 API（新端点：/oauth2/device/*）"""
+    url = CLOUD + path + "?" + urllib.parse.urlencode(query_params)
+    req = urllib.request.Request(url, method="POST", headers={
         "Authorization": "Bearer " + PAT,
         "Accept": "application/json",
         "Content-Type": "application/json",
@@ -76,6 +96,8 @@ def cloud_req(method, path, query_params):
             return e.code, json.loads(e.read().decode() or "{}")
         except Exception:
             return e.code, {}
+    except Exception as e:
+        return -1, {"error": str(e)[:200]}
 
 
 def ws_subscribe_token(request_id, timeout_s=20):
@@ -111,6 +133,11 @@ def ws_subscribe_token(request_id, timeout_s=20):
     return None
 
 
+def datetime_now_iso():
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
+
+
 def main():
     for attempt in range(1, 8):
         try:
@@ -125,22 +152,36 @@ def main():
                 time.sleep(3)
                 continue
 
-            print(f"[try {attempt}] approve (user_code={user_code})...")
-            status, resp = cloud_req(
-                "POST",
-                "/api/instances/device-authorization/approve",
-                {"request_id": request_id},
-            )
+            # 1) 查设备信息（新端点，用 user_code），拿 scopes
+            print(f"[try {attempt}] get device information (user_code={user_code})...")
+            status, dev = cloud_get("/oauth2/device/information", {"user_code": user_code})
+            if status != 200:
+                print(f"[try {attempt}] device information status={status}: {json.dumps(dev)[:200]}")
+                time.sleep(3)
+                continue
+            scopes = [s.get("name") for s in (dev.get("scopes") or []) if s.get("name")]
+            if not scopes:
+                print(f"[try {attempt}] no scopes returned: {json.dumps(dev)[:200]}")
+                time.sleep(3)
+                continue
+            print(f"[try {attempt}] scopes: {scopes}")
+
+            # 2) 批准设备（新端点，用 user_code + scope）
+            print(f"[try {attempt}] approve device...")
+            status, resp = cloud_post("/oauth2/device/approve", {
+                "user_code": user_code,
+                "scope": ",".join(scopes),
+            })
             print(f"[try {attempt}] approve status={status}")
             if status != 200:
                 print("approve resp:", json.dumps(resp)[:300])
                 time.sleep(3)
                 continue
 
+            # 3) 订阅换 token
             print(f"[try {attempt}] waiting for auth token...")
             token = ws_subscribe_token(request_id)
             if token and token.get("accessToken"):
-                now = int(time.time())
                 out = {
                     "access_token": token["accessToken"],
                     "refresh_token": token.get("refreshToken", ""),
@@ -159,12 +200,5 @@ def main():
     raise SystemExit(1)
 
 
-def datetime_now_iso():
-    from datetime import datetime, timezone
-    return datetime.now(timezone.utc).isoformat()
-
-
 if __name__ == "__main__":
     main()
-
-# 项目版本 v1.0.0
