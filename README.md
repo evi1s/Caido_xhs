@@ -68,8 +68,11 @@ vim config.yaml       # 填写: auth.pat / mongo.* / targets / extract_fields
 ```
 浏览器打开 http://<服务器IP>:18000
   → 用 Caido 账号登录并认领实例（Caido 官方机制，任何脚本无法代替）
-  → Profile → Personal Access Tokens → Create
+  → Developer → Create Token → Personal Access Tokens
+
 ```
+也可以直接访问：https://dashboard.caido.io/developer
+<img width="701" height="367" alt="image" src="https://github.com/user-attachments/assets/5527fec9-2053-46d9-a27b-47d74d597434" />
 
 把生成的 PAT 填入 `config.yaml` 的 `auth.pat`，然后：
 
