@@ -9,12 +9,12 @@
 #   或
 #   docker compose up -d --build # 手动启动
 #
-# ⚠️ 重要说明：
-#   Caido 有 Host 白名单机制（防 DNS rebinding），只接受 IP 形式的
-#   Host 头访问（容器名/服务名会被 403 拒绝）。
-#   因此这里给 Caido 绑定静态 IP 172.30.0.10，
-#   并通过环境变量 CAIDO_URL 注入给监听器（自动覆盖 config.yaml，
-#   客户无需手动修改 config.yaml 中的 caido.url）。
+# ⚠️ 说明：
+#   Caido 有 Host 白名单机制（防 DNS rebinding），只接受 IP 形式
+#   的 Host 头（服务名/容器名会被 403 拒绝）。
+#   监听脚本已内置"主机名自动解析为 IP"逻辑（v8.1+），
+#   config.yaml 中 caido.url 写 http://caido:8080 即可，
+#   脚本会自动解析成实际 IP 访问，无需任何手动配置。
 # ============================================================
 
 services:
@@ -25,9 +25,6 @@ services:
       - "18000:8080"                   # Web 界面 + HTTP(S) 代理端口
     volumes:
       - caido-data:/data               # Caido 数据持久化（含 CA 证书、项目、认领状态）
-    networks:
-      caido-net:
-        ipv4_address: 172.30.0.10      # 静态 IP（listener 用此 IP 访问，避免白名单 403）
     restart: unless-stopped
 
   listener:
@@ -35,23 +32,12 @@ services:
     container_name: caido_listener
     depends_on:
       - caido
-    environment:
-      CAIDO_URL: "http://172.30.0.10:8080"   # 自动覆盖 config.yaml 的 caido.url（无需客户修改）
     volumes:
       - ./config.yaml:/app/config.yaml:ro   # 真实配置（挂载覆盖镜像内默认）
       - ./data:/app/data                    # tokens.json / last_id.json 持久化
-    networks:
-      - caido-net
     restart: unless-stopped
-
-networks:
-  caido-net:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.30.0.0/24        # 可自行调整网段，避免与宿主机其他网络冲突
 
 volumes:
   caido-data:
 
-# 项目版本 v1.2.0
+# 项目版本 v1.3.0
