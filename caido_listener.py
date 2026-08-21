@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Caido 流量监听器（v8 — 配置文件驱动版）
+Caido 流量监听器（v8.1 — 配置文件驱动版）
 ========================================================
 功能：
   1. 监听 Caido 代理流量（HTTP 轮询，增量处理）
@@ -10,6 +10,7 @@ Caido 流量监听器（v8 — 配置文件驱动版）
   4. 自动生成 fingerprint / x_legacy_fid（算法与客户端一致）
   5. 写入 MongoDB（按 dedup_key 去重，同一值只保留最新一条）
   6. token 到期前自动用 PAT 续期（免运维）
+  7. 自动将 caido.url 主机名解析为 IP（绕过 Caido Host 白名单 403）
 
 配置：config.yaml（同目录），修改后重启生效。
 依赖：pip install pymongo pyyaml websocket-client（websocket-client 仅 token 续期用）
@@ -21,6 +22,8 @@ import subprocess
 import gzip
 import time
 import uuid
+import socket
+import ipaddress
 import base64
 import hashlib
 import logging
@@ -91,10 +94,44 @@ logging.basicConfig(
 )
 log = logging.getLogger("caido-listener")
 
+
+# ------------------------------------------------------------
+# Caido URL 主机名 → IP 解析
+# （Caido 有 Host 白名单机制：只接受 IP 形式的 Host 头，
+#   用服务名/容器名访问 GraphQL 会返回 403 Forbidden。
+#   这里自动把主机名解析为 IP，彻底绕开白名单问题。）
+# ------------------------------------------------------------
+def resolve_caido_url(url):
+    try:
+        p = urllib.parse.urlparse(url)
+        host = p.hostname or ""
+        if not host:
+            return url
+        # 已是 IP 则直接用
+        try:
+            ipaddress.ip_address(host)
+            return url
+        except ValueError:
+            pass
+        port = p.port or (443 if p.scheme == "https" else 80)
+        ips = []
+        for info in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM):
+            ip = info[4][0]
+            if ip not in ips:
+                ips.append(ip)
+        if ips:
+            new_url = f"{p.scheme}://{ips[0]}:{port}{p.path or ''}"
+            log.info("Caido URL 主机名 %s 已解析为 IP %s（绕过 Host 白名单）", host, ips[0])
+            return new_url
+    except Exception as e:
+        log.warning("Caido URL 解析失败（使用原值 %s）: %s", url, str(e)[:120])
+    return url
+
+
 # ------------------------------------------------------------
 # 常量
 # ------------------------------------------------------------
-CAIDO_URL = cfg_get("caido", "url", default="http://127.0.0.1:8080")
+CAIDO_URL = resolve_caido_url(cfg_get("caido", "url", default="http://127.0.0.1:8080"))
 TOKENS_FILE = cfg_get("auth", "tokens_file", default="/app/tokens.json")
 LAST_ID_FILE = cfg_get("last_id_file", default="/app/last_id.json")
 
