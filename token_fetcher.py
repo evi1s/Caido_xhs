@@ -7,10 +7,14 @@ token_fetcher.py — 通过 PAT 自动获取 Caido access token（Device Authori
   - PAT 从 config.yaml 读取（auth.pat），永久有效
   - 每次运行都会重新获取 access_token + refresh_token，写入 tokens.json
   - 监听器会在 token 到期前自动调用本脚本续期（auto_renew: true）
+  - 自动将 caido.url 主机名解析为 IP（绕过 Caido Host 白名单 403）
+  - 支持 CAIDO_URL 环境变量覆盖（listener 调用时传入解析后的 URL）
 """
 import json
 import os
 import time
+import socket
+import ipaddress
 import urllib.parse
 import urllib.request
 
@@ -23,9 +27,39 @@ with open(CONFIG_PATH, "r", encoding="utf-8") as f:
     CFG = yaml.safe_load(f) or {}
 
 PAT = CFG.get("auth", {}).get("pat", "")
-INSTANCE = CFG.get("caido", {}).get("url", "http://127.0.0.1:8080")
 TOKENS_FILE = CFG.get("auth", {}).get("tokens_file", "/app/tokens.json")
 CLOUD = "https://api.caido.io"
+
+
+def resolve_url(url):
+    """主机名自动解析为 IP（Caido Host 白名单只接受 IP 形式的 Host 头）"""
+    try:
+        p = urllib.parse.urlparse(url)
+        host = p.hostname or ""
+        if not host:
+            return url
+        # 已是 IP 则直接用
+        try:
+            ipaddress.ip_address(host)
+            return url
+        except ValueError:
+            pass
+        port = p.port or (443 if p.scheme == "https" else 80)
+        ips = []
+        for info in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM):
+            ip = info[4][0]
+            if ip not in ips:
+                ips.append(ip)
+        if ips:
+            return f"{p.scheme}://{ips[0]}:{port}{p.path or ''}"
+    except Exception:
+        pass
+    return url
+
+
+# 环境变量优先（listener 调用时传入解析后的 URL），否则读 config.yaml 并自动解析
+INSTANCE = os.environ.get("CAIDO_URL") or resolve_url(
+    CFG.get("caido", {}).get("url", "http://127.0.0.1:8080"))
 GRAPHQL_URL = INSTANCE + "/graphql"
 WS_URL = INSTANCE.replace("http", "ws") + "/ws/graphql"
 
