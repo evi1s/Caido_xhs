@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Caido 流量监听器（v8.1 — 配置文件驱动版）
+Caido 流量监听器（v8.2 — 配置文件驱动版）
 ========================================================
 功能：
   1. 监听 Caido 代理流量（HTTP 轮询，增量处理）
@@ -11,6 +11,7 @@ Caido 流量监听器（v8.1 — 配置文件驱动版）
   5. 写入 MongoDB（按 dedup_key 去重，同一值只保留最新一条）
   6. token 到期前自动用 PAT 续期（免运维）
   7. 自动将 caido.url 主机名解析为 IP（绕过 Caido Host 白名单 403）
+     —— token_fetcher.py 子进程同样传入解析后的 URL
 
 配置：config.yaml（同目录），修改后重启生效。
 依赖：pip install pymongo pyyaml websocket-client（websocket-client 仅 token 续期用）
@@ -166,8 +167,10 @@ def run_token_fetcher():
     """运行 token_fetcher.py 获取/刷新 token（PAT 从 config.yaml 读取）"""
     log.info("自动获取 Caido token（device flow + PAT）...")
     try:
+        env = dict(os.environ)
+        env["CAIDO_URL"] = CAIDO_URL   # 传入解析后的 URL（IP），token_fetcher 用 IP 访问绕过白名单 403
         res = subprocess.run(["python3", "/app/token_fetcher.py"], timeout=120,
-                             cwd="/app", capture_output=True, text=True)
+                             cwd="/app", capture_output=True, text=True, env=env)
         if res.returncode != 0:
             log.error("token_fetcher.py 失败: %s", (res.stderr or res.stdout or "")[:300])
             return False
