@@ -125,6 +125,22 @@ def load_tokens():
     }
 
 
+def run_token_fetcher():
+    """运行 token_fetcher.py 获取/刷新 token（PAT 从 config.yaml 读取）"""
+    log.info("自动获取 Caido token（device flow + PAT）...")
+    try:
+        res = subprocess.run(["python3", "/app/token_fetcher.py"], timeout=120,
+                             cwd="/app", capture_output=True, text=True)
+        if res.returncode != 0:
+            log.error("token_fetcher.py 失败: %s", (res.stderr or res.stdout or "")[:300])
+            return False
+        log.info("token 获取成功")
+        return True
+    except Exception as e:
+        log.error("token_fetcher.py 执行异常: %s", str(e)[:200])
+        return False
+
+
 def ensure_token(tokens):
     """token 即将过期时自动用 PAT 续期（token_fetcher.py 已内置 PAT 与 device flow）"""
     try:
@@ -134,8 +150,7 @@ def ensure_token(tokens):
         et = datetime.fromisoformat(exp.replace("Z", "+00:00"))
         if (et - datetime.now(timezone.utc)).total_seconds() < 86400:
             log.info("token 即将过期(%s)，自动续期...", exp)
-            subprocess.run(["python3", "/app/token_fetcher.py"], timeout=120,
-                           cwd="/app", capture_output=True)
+            run_token_fetcher()
             tokens = load_tokens()
             log.info("自动续期完成，新 token 有效期至 %s",
                      (tokens or {}).get("expiresAt"))
@@ -435,8 +450,13 @@ def poll_loop(tokens, col):
 def main():
     tokens = load_tokens()
     if not tokens or not tokens.get("accessToken"):
-        log.error("token 加载失败（%s），先运行 token_fetcher.py", TOKENS_FILE)
-        return
+        log.warning("token 不存在（%s），自动获取...", TOKENS_FILE)
+        run_token_fetcher()
+        tokens = load_tokens()
+        if not tokens or not tokens.get("accessToken"):
+            log.error("token 获取失败（%s），请检查 config.yaml 中 auth.pat 是否正确",
+                      TOKENS_FILE)
+            return
 
     m = cfg_get("mongo", default={})
     try:
@@ -469,5 +489,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# 项目版本 v1.0.0
