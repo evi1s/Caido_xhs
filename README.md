@@ -16,6 +16,11 @@
 - 🗄️ **增量写入**：HTTP 轮询 + 增量游标，重启不重抓历史；按 `userid` 唯一索引去重
 - 🚀 **一键部署**：Docker Compose 一键启动 Caido + 监听器两个容器，容器重启自动恢复
 
+
+
+https://github.com/user-attachments/assets/3c46623f-be59-40b2-83c5-85fa255ce590
+
+
 ---
 
 ## 🏗️ 架构
