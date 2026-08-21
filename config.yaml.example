@@ -6,7 +6,9 @@
 
 # ---------- Caido 实例连接 ----------
 caido:
-  url: "http://caido:8080"            # Caido GraphQL 地址（compose 部署用服务名 caido；本机调试可用 http://127.0.0.1:18000）
+  # ⚠️ 必须使用静态 IP（docker-compose.yml 中已绑定 172.30.0.10）
+  # Caido 有 Host 白名单机制，用服务名/容器名访问会返回 403 Forbidden
+  url: "http://172.30.0.10:8080"       # compose 部署固定 IP（勿改成 caido 服务名！）
 
 # ---------- 认证 ----------
 auth:
@@ -95,4 +97,4 @@ polling:
 last_id_file: "/app/data/last_id.json" # 增量游标保存位置
 log_level: "INFO"                      # DEBUG / INFO / WARNING / ERROR
 
-# 项目版本 v1.0.0
+# 项目版本 v1.1.0
