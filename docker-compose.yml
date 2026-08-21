@@ -8,6 +8,12 @@
 #   ./install.sh                 # 一键安装（推荐）
 #   或
 #   docker compose up -d --build # 手动启动
+#
+# ⚠️ 重要说明：
+#   Caido 有 Host 白名单机制（防 DNS rebinding），只接受 IP 形式的
+#   Host 头访问（容器名/服务名会被 403 拒绝）。
+#   因此这里给 Caido 绑定静态 IP 172.30.0.10，
+#   config.yaml 中 caido.url 必须填写: http://172.30.0.10:8080
 # ============================================================
 
 services:
@@ -17,7 +23,10 @@ services:
     ports:
       - "18000:8080"                   # Web 界面 + HTTP(S) 代理端口
     volumes:
-      - caido-data:/data               # Caido 数据持久化（含 CA 证书、项目）
+      - caido-data:/data               # Caido 数据持久化（含 CA 证书、项目、认领状态）
+    networks:
+      caido-net:
+        ipv4_address: 172.30.0.10      # 静态 IP（listener 用此 IP 访问，避免白名单 403）
     restart: unless-stopped
 
   listener:
@@ -28,9 +37,18 @@ services:
     volumes:
       - ./config.yaml:/app/config.yaml:ro   # 真实配置（挂载覆盖镜像内默认）
       - ./data:/app/data                    # tokens.json / last_id.json 持久化
+    networks:
+      - caido-net
     restart: unless-stopped
+
+networks:
+  caido-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24        # 可自行调整网段，避免与宿主机其他网络冲突
 
 volumes:
   caido-data:
 
-# 项目版本 v1.0.0
+# 项目版本 v1.1.0
